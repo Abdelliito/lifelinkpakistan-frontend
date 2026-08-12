@@ -30,12 +30,17 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files
+.env*.local
+.env
 
-# vercel
-.vercel
+# python & database
+__pycache__/
+*.py[cod]
+*.db
+*.sqlite3
+venv/
+.venv/
+lifelinkbackend/__pycache__/
+lifelinkbackend/*.db
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts

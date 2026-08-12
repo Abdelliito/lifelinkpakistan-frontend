@@ -1,91 +1,82 @@
-import { mockUsers } from '@/data/users'
-import { DEMO_ACCOUNTS, MOCK_DELAY } from '@/constants'
-import { delay, genId } from '@/lib/utils'
+import { apiFetch } from '@/lib/api'
+import { DEMO_ACCOUNTS } from '@/constants'
 import type { LoginPayload, SignupPayload, User } from '@/types'
 
-/**
- * FRONTEND-ONLY MOCK AUTH SERVICE
- * ---------------------------------------------------------------------------
- * This simulates authentication using an in-memory user list and
- * localStorage for session persistence across page refreshes. There is
- * NO real password hashing, NO server verification, and NO security
- * guarantee. It exists purely so the UI has something realistic to call.
- * Swap this file's internals for real API calls when a backend exists —
- * the function signatures are designed to make that swap painless.
- */
-
 const SESSION_KEY = 'lifelink_session'
+const TOKEN_KEY = 'lifelink_token'
 
-// In-memory "database" of users for this session (mutated on signup)
-let users: User[] = [...mockUsers]
-
-function persistSession(user: User) {
+function persistSession(user: User, token?: string) {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(SESSION_KEY, JSON.stringify(user))
+  if (token) {
+    window.localStorage.setItem(TOKEN_KEY, token)
+  }
 }
 
 function clearSession() {
   if (typeof window === 'undefined') return
   window.localStorage.removeItem(SESSION_KEY)
+  window.localStorage.removeItem(TOKEN_KEY)
 }
 
 export const authService = {
   async login(payload: LoginPayload): Promise<{ user: User }> {
-    await delay(MOCK_DELAY.medium)
+    try {
+      const data = await apiFetch<{ access_token: string; user: User }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: payload.email,
+          password: payload.password,
+        }),
+      })
 
-    if (!payload.email || !payload.password) {
-      throw new Error('Please fill in all fields.')
+      persistSession(data.user, data.access_token)
+      return { user: data.user }
+    } catch (err: any) {
+      // Fallback for demo accounts if backend is unreachable or not seeded
+      if (payload.email === DEMO_ACCOUNTS.admin.email && payload.password === DEMO_ACCOUNTS.admin.password) {
+        const demoUser: User = {
+          id: 'u-admin',
+          name: 'Demo Admin',
+          email: payload.email,
+          role: 'ADMIN',
+          joinDate: new Date().toISOString().slice(0, 10),
+          status: 'Active',
+          isDonor: false,
+        }
+        persistSession(demoUser)
+        return { user: demoUser }
+      }
+      throw err
     }
-
-    // Demo admin account
-    if (payload.email === DEMO_ACCOUNTS.admin.email && payload.password === DEMO_ACCOUNTS.admin.password) {
-      const admin = users.find((u) => u.role === 'ADMIN')!
-      persistSession(admin)
-      return { user: admin }
-    }
-
-    // Demo regular user account
-    if (payload.email === DEMO_ACCOUNTS.user.email && payload.password === DEMO_ACCOUNTS.user.password) {
-      const user = users.find((u) => u.email === DEMO_ACCOUNTS.user.email)!
-      persistSession(user)
-      return { user }
-    }
-
-    // Any other matching email in the mock directory (password is not actually checked
-    // beyond presence, since there is no real backend / hashing here)
-    const found = users.find((u) => u.email.toLowerCase() === payload.email.toLowerCase())
-    if (found) {
-      persistSession(found)
-      return { user: found }
-    }
-
-    throw new Error('No account found with that email. Try signing up first.')
   },
 
   async signup(payload: SignupPayload): Promise<{ user: User }> {
-    await delay(MOCK_DELAY.long)
+    const data = await apiFetch<{ access_token: string; user: User }>('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: payload.name,
+        email: payload.email,
+        password: payload.password,
+        phone: payload.phone || '',
+        city: payload.city || '',
+        blood_group: payload.bloodGroup || '',
+        is_donor: payload.intent === 'donate' || payload.intent === 'both',
+      }),
+    })
 
-    if (users.some((u) => u.email.toLowerCase() === payload.email.toLowerCase())) {
-      throw new Error('An account with this email already exists.')
-    }
-
-    const newUser: User = {
-      id: genId('u'),
-      name: payload.name,
-      email: payload.email,
-      role: payload.intent === 'donate' || payload.intent === 'both' ? 'DONOR' : 'USER',
-      joinDate: new Date().toISOString().slice(0, 10),
-      status: 'Active',
-      isDonor: payload.intent === 'donate' || payload.intent === 'both',
-    }
-    users = [...users, newUser]
-    persistSession(newUser)
-    return { user: newUser }
+    persistSession(data.user, data.access_token)
+    return { user: data.user }
   },
 
   async logout(): Promise<void> {
-    await delay(MOCK_DELAY.short / 2)
-    clearSession()
+    try {
+      await apiFetch('/auth/logout', { method: 'POST' })
+    } catch {
+      // Ignore network errors on logout
+    } finally {
+      clearSession()
+    }
   },
 
   getCurrentUser(): User | null {
@@ -107,3 +98,4 @@ export const authService = {
     return updated
   },
 }
+
