@@ -230,13 +230,16 @@ export default function LandingPage() {
             Join thousands of registered donors in Pakistan. One donation can save up to 3 lives.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Btn size="lg" className="bg-white text-[#C41230] hover:bg-white/90 font-bold" onClick={() => router.push('/signup')}>
+            <Btn
+              size="lg"
+              className="text-white hover:bg-white/10  font-bold shadow-md"
+              onClick={() => router.push('/signup')}
+            >
               Become a Donor
             </Btn>
             <Btn
-              variant="outline"
               size="lg"
-              className="border-white/40 text-white hover:bg-white/10 hover:border-white"
+              className="bg-transparent border-2 border-white text-white hover:bg-white/10 font-bold"
               onClick={() => router.push('/how-it-works')}
             >
               Learn More
